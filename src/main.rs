@@ -1,4 +1,7 @@
+mod util;
+mod ast;
 mod lexer;
+mod context;
 
 use lexer::*;
 
@@ -9,6 +12,6 @@ fn main() {
     let tokens = lexer.lex();
 
     for token in tokens {
-        println!("{}", token.in_context());
+        println!("{}", token.context.in_context());
     }
 }

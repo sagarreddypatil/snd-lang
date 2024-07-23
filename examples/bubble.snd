@@ -1,5 +1,4 @@
-fn Cons(x, y): List = itself
-fn Nil: List = itself
+data List = Cons(Int, List) | Nil
 
 let sorted = fn(list) = match list
     | Nil => true

@@ -1,8 +1,9 @@
 use std::fmt::{self, Display, Formatter};
+use crate::{context::Context, util::{leak, Symbol}};
 
 #[derive(Debug, PartialEq)]
 pub enum TokenKind {
-    Ident(&'static str),
+    Ident(&'static Symbol),
     Keyword(&'static str),
 
     // symbols
@@ -28,7 +29,7 @@ impl TokenKind {
     pub fn length(&self) -> usize {
         use TokenKind::*;
         match self {
-            Ident(s) => s.len(),
+            Ident(s) => s.name.len(),
             Keyword(s) => s.len(),
             FatArrow => 2,
             BoolLit(b) => b.to_string().len(),
@@ -41,11 +42,7 @@ impl TokenKind {
 #[derive(Debug)]
 pub struct Token {
     pub token: TokenKind,
-    start: usize,
-    len: usize,
-
-    path: &'static str,
-    src: &'static str,
+    pub context: Context,
 }
 
 impl PartialEq for Token {
@@ -54,50 +51,10 @@ impl PartialEq for Token {
     }
 }
 
-fn get_line_info(s: &str, index: usize) -> (usize, usize) {
-    let mut line_number = 1;
-    let mut line_start = 0;
-
-    for (i, c) in s.char_indices() {
-        if i >= index {
-            break;
-        }
-        if c == '\n' {
-            line_number += 1;
-            line_start = i + 1;
-        }
-    }
-
-    let position_in_line = index - line_start + 1;
-    (line_number, position_in_line)
-}
-
 impl Display for Token {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let (line, start) = get_line_info(self.src, self.start);
-        write!(f, "{}:{}:{} {:?}", self.path, line, start, self.token)
+        write!(f, "{} {:?}", self.context, self.token)
     }
-}
-
-impl Token {
-    pub fn in_context(&self) -> String {
-        let (line, col) = get_line_info(self.src, self.start);
-        let line_src = self.src.lines().nth(line - 1).unwrap();
-
-        format!(
-            "{}:{}:{}\n{}\n{}{}",
-            self.path,
-            line,
-            col,
-            line_src,
-            " ".repeat(col - 1),
-            "^".repeat(self.len)
-        )
-    }
-}
-
-fn leak(s: &str) -> &'static str {
-    Box::leak(s.to_string().into_boxed_str())
 }
 
 fn is_keyword(s: &str) -> bool {
@@ -146,7 +103,7 @@ impl Lexer {
                 _ if is_keyword(text) => TokenKind::Keyword(text),
                 _ if is_int(text) => TokenKind::IntLit(text.parse().unwrap()),
                 _ if is_bool(text) => TokenKind::BoolLit(text == "true"),
-                _ => TokenKind::Ident(text),
+                _ => TokenKind::Ident(Symbol::new(text)),
             };
 
             self.accum.clear();
@@ -160,11 +117,13 @@ impl Lexer {
 
         self.tokens.push(Token {
             token,
-            start: self.pos,
-            len: len,
+            context: Context {
+                start: self.pos,
+                len,
 
-            path: self.path,
-            src: self.src,
+                path: self.path,
+                src: self.src,
+            },
         });
 
         self.pos += len;
